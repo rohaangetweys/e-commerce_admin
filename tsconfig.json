@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "src/components/UsersTable.jsx", "src/components/DashboardStats.jsx"  ],
   "exclude": ["node_modules"]
 }

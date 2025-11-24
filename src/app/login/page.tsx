@@ -10,7 +10,6 @@ export default async function LoginPage() {
 
     const ADMIN_EMAIL = "rohaan@email.com";
 
-    // If user is already logged in as admin, redirect to admin dashboard
     if (user && user.email === ADMIN_EMAIL) {
         redirect("/");
     }

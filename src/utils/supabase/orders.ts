@@ -28,7 +28,7 @@ export interface Order {
     subtotal: number;
     tax: number;
     total: number;
-    status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+    status: 'pending' | 'completed';
     items: OrderItem[];
     created_at: string;
     updated_at: string;
@@ -110,14 +110,35 @@ export const ordersService = {
 
     async updateOrderStatus(id: string, status: Order['status']) {
         const supabase = createClient();
-        const { data, error } = await supabase
+        
+        const { error: updateError } = await supabase
             .from('orders')
-            .update({ status })
+            .update({ 
+                status,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
+
+        if (updateError) {
+            console.error('Supabase update error:', updateError);
+            throw updateError;
+        }
+        
+        const { data, error: fetchError } = await supabase
+            .from('orders')
+            .select('*')
             .eq('id', id)
-            .select()
             .single();
 
-        if (error) throw error;
+        if (fetchError) {
+            console.error('Supabase fetch error:', fetchError);
+            throw fetchError;
+        }
+        
+        if (!data) {
+            throw new Error('Order not found after update');
+        }
+        
         return data as Order;
     },
 

@@ -1,6 +1,7 @@
-import AdminSidebar from "@/components/common/AdminSidebar";
+import AdminSidebar from "@/components/layout/AdminSidebar";
 import { createSupabaseServer } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+import { Toaster } from "react-hot-toast";
 
 export default async function AdminLayout({
     children,
@@ -26,6 +27,19 @@ export default async function AdminLayout({
                     {children}
                 </div>
             </main>
+            <Toaster
+                position="top-right"
+                toastOptions={{
+                    duration: 4000,
+                    style: {
+                        background: '#363636',
+                        color: '#fff',
+                    },
+                    success: {
+                        duration: 3000
+                    },
+                }}
+            />
         </div>
     );
 }

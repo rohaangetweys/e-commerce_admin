@@ -1,71 +1,65 @@
-import { FiUsers, FiShoppingBag, FiDollarSign, FiPlusCircle } from 'react-icons/fi';
-import StatCard from '@/components/common/StatCard';
-import Button from '@/components/common/Button';
+import { createSupabaseServer } from '@/utils/supabase/server';
+import DashboardContent from '@/components/dashboard/DashboardContent';
+import { Order } from '@/utils/supabase/orders';
 
-const stats = [
-    { title: 'Total Users', value: '2,847', icon: FiUsers, color: 'bg-blue-500' },
-    { title: 'Total Products', value: '1,234', icon: FiShoppingBag, color: 'bg-green-500' },
-    { title: 'Total Sales', value: '$45,231', icon: FiDollarSign, color: 'bg-purple-500' },
-]
+export default async function DashboardPage() {
+    const supabase = await createSupabaseServer();
 
-const recentActivities = [
-    { user: 'John Doe', action: 'placed a new order', time: '2 min ago' },
-    { user: 'Sarah Smith', action: 'registered new account', time: '5 min ago' },
-    { user: 'Mike Johnson', action: 'purchased product', time: '10 min ago' },
-    { user: 'Emily Davis', action: 'left a product review', time: '15 min ago' },
-]
+    const [
+        usersResponse,
+        productsResponse,
+        categoriesResponse,
+        ordersResponse,
+        recentOrdersResponse,
+        revenueDataResponse
+    ] = await Promise.all([
+        supabase.from('users').select('id'),
+        supabase.from('products').select('id'),
+        supabase.from('categories').select('id'),
+        supabase.from('orders').select('id'),
 
-export default function AdminDashboard() {
+        supabase.from('orders')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(5),
+
+        supabase.from('orders')
+            .select('total, created_at')
+            .eq('status', 'completed')
+    ]);
+
+    const stats = {
+        users: usersResponse.data?.length || 0,
+        products: productsResponse.data?.length || 0,
+        categories: categoriesResponse.data?.length || 0,
+        orders: ordersResponse.data?.length || 0
+    };
+
+    const completedOrders = ordersResponse.data?.length ?
+        ordersResponse.data.filter((order: any) => order.status === 'completed').length : 0;
+
+    const totalRevenue = revenueDataResponse.data?.reduce((sum: number, order: any) =>
+        sum + order.total, 0) || 0;
+
+    const averageOrderValue = completedOrders > 0 ?
+        totalRevenue / completedOrders : 0;
+
+    const totalVisitors = 1000;
+    const conversionRate = completedOrders > 0 ?
+        (completedOrders / totalVisitors) * 100 : 0;
+
+    const metrics = {
+        totalRevenue,
+        conversionRate,
+        averageOrderValue,
+        completedOrders
+    };
+
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-                <div className="text-sm text-gray-500">
-                    Welcome back, Admin
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {stats.map((stat, index) => (
-                    <StatCard
-                        key={index}
-                        title={stat.title}
-                        value={stat.value}
-                        icon={stat.icon}
-                        color={stat.color}
-                    />
-                ))}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Quick Actions</p>
-                            <p className="text-2xl font-bold text-gray-800 mt-1">Manage</p>
-                        </div>
-                        <div className="p-3 rounded-full bg-orange-500 text-white">
-                            <FiPlusCircle size={24} />
-                        </div>
-                    </div>
-                    <div className="mt-4 space-y-2">
-                        <Button variant="primary" size="sm">Add Product</Button>
-                        <Button variant="outline" size="sm">View Reports</Button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Activities</h2>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
-                    <div className="space-y-4">
-                        <Button variant="success" size="lg">View Analytics</Button>
-                        <Button variant="dark" size="lg">Manage Users</Button>
-                        <Button variant="outline" size="lg">Product Inventory</Button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
+        <DashboardContent
+            stats={stats}
+            recentOrders={recentOrdersResponse.data as Order[] || []}
+            metrics={metrics}
+        />
+    );
 }

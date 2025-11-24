@@ -20,7 +20,6 @@ const menuItems = [
     { href: '/categories', icon: FiFolder, label: 'Categories' },
     { href: '/products', icon: FiShoppingBag, label: 'Products' },
     { href: '/sales', icon: FiDollarSign, label: 'Sales' },
-    { href: '/analytics', icon: FiBarChart2, label: 'Analytics' },
 ]
 
 export default function AdminSidebar() {
