@@ -70,12 +70,6 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
             description: 'Create a new product listing'
         },
         {
-            label: 'View Analytics',
-            icon: FiBarChart2,
-            route: '/analytics',
-            description: 'See detailed analytics'
-        },
-        {
             label: 'Manage Users',
             icon: FiUsers,
             route: '/users',
