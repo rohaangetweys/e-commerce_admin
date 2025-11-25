@@ -119,5 +119,44 @@ export const productsService = {
 
         if (error) throw error;
         return data as Product[];
+    },
+
+    async uploadImage(file: File, folder: string = 'products'): Promise<string> {
+        const supabase = createClient();
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const filePath = folder === 'products' ? fileName : `${folder}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('products')
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: false
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('products')
+            .getPublicUrl(filePath);
+
+        return publicUrl;
+    },
+
+    async deleteImage(imageUrl: string) {
+        const supabase = createClient();
+        const fileName = imageUrl.split('/').pop();
+        if (!fileName) return;
+
+        const { error } = await supabase.storage
+            .from('products')
+            .remove([fileName]);
+
+        if (error) throw error;
+    },
+
+    async uploadMultipleImages(files: File[], folder: string = 'products'): Promise<string[]> {
+        const uploadPromises = files.map(file => this.uploadImage(file, folder));
+        return Promise.all(uploadPromises);
     }
 };

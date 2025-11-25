@@ -9,7 +9,7 @@ export interface Category {
     is_active: boolean;
     sort_order: number;
     created_at: string;
-    item_count?: number
+    item_count?: number;
 }
 
 export const categoriesService = {
@@ -74,5 +74,39 @@ export const categoriesService = {
 
     async toggleCategoryStatus(id: string, isActive: boolean) {
         return this.updateCategory(id, { is_active: isActive });
+    },
+
+    async uploadImage(file: File): Promise<string> {
+        const supabase = createClient();
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const filePath = fileName;
+
+        const { error: uploadError } = await supabase.storage
+            .from('categories')
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: false
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('categories')
+            .getPublicUrl(filePath);
+
+        return publicUrl;
+    },
+
+    async deleteImage(imageUrl: string) {
+        const supabase = createClient();
+        const fileName = imageUrl.split('/').pop();
+        if (!fileName) return;
+
+        const { error } = await supabase.storage
+            .from('categories')
+            .remove([fileName]);
+
+        if (error) throw error;
     }
 };

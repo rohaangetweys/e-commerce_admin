@@ -1,9 +1,11 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { Product } from '@/utils/supabase/products';
+import React, { useState, useEffect, useRef } from 'react';
+import { Product, productsService } from '@/utils/supabase/products';
 import { Category } from '@/utils/supabase/categories';
 import Modal from '@/components/common/Modal';
 import Button from '@/components/common/Button';
+import { FiUpload, FiX, FiImage, FiPlus, FiTrash2 } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 interface ProductModalProps {
     isOpen: boolean;
@@ -49,11 +51,11 @@ const initialFormData: FormData = {
     category_id: '',
     brand: '',
     main_img_url: '',
-    image_urls: [''],
+    image_urls: [],
     variant_type1_name: '',
-    variant_type1_options: [''],
+    variant_type1_options: [],
     variant_type2_name: '',
-    variant_type2_options: [''],
+    variant_type2_options: [],
     variant_prices: {},
     is_active: true,
     is_new: false,
@@ -70,6 +72,12 @@ const ProductModal: React.FC<ProductModalProps> = ({
 }) => {
     const [formData, setFormData] = useState<FormData>(initialFormData);
     const [variantPrices, setVariantPrices] = useState<Record<string, number>>({});
+    const [mainImageFile, setMainImageFile] = useState<File | null>(null);
+    const [mainImagePreview, setMainImagePreview] = useState<string>('');
+    const [additionalImages, setAdditionalImages] = useState<{ file: File | null; preview: string; url: string }[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const mainImageInputRef = useRef<HTMLInputElement>(null);
+    const additionalImagesInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (product) {
@@ -85,11 +93,11 @@ const ProductModal: React.FC<ProductModalProps> = ({
                 category_id: product.category_id,
                 brand: product.brand,
                 main_img_url: product.main_img_url,
-                image_urls: product.image_urls || [''],
+                image_urls: product.image_urls || [],
                 variant_type1_name: product.variant_type1_name || '',
-                variant_type1_options: product.variant_type1_options || [''],
+                variant_type1_options: product.variant_type1_options || [],
                 variant_type2_name: product.variant_type2_name || '',
-                variant_type2_options: product.variant_type2_options || [''],
+                variant_type2_options: product.variant_type2_options || [],
                 variant_prices: product.variant_prices || {},
                 is_active: product.is_active,
                 is_new: product.is_new,
@@ -97,31 +105,75 @@ const ProductModal: React.FC<ProductModalProps> = ({
             };
             setFormData(productData);
             setVariantPrices(product.variant_prices || {});
+            setMainImagePreview(product.main_img_url);
+            
+            const additionalImagesData = product.image_urls?.map(url => ({
+                file: null,
+                preview: url,
+                url: url
+            })) || [];
+            setAdditionalImages(additionalImagesData);
         } else {
             setFormData(initialFormData);
             setVariantPrices({});
+            setMainImageFile(null);
+            setMainImagePreview('');
+            setAdditionalImages([]);
         }
     }, [product]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (isUploading) {
+            toast.error('Please wait for image uploads to complete');
+            return;
+        }
 
-        const cleanedData = {
-            ...formData,
-            image_urls: formData.image_urls.filter(url => url.trim() !== ''),
-            variant_type1_options: formData.variant_type1_options.filter(opt => opt.trim() !== ''),
-            variant_type2_options: formData.variant_type2_options.filter(opt => opt.trim() !== ''),
-            variant_prices: variantPrices
-        };
+        setIsUploading(true);
 
-        onSave(cleanedData);
+        try {
+            let finalMainImageUrl = formData.main_img_url;
+
+            if (mainImageFile) {
+                finalMainImageUrl = await productsService.uploadImage(mainImageFile, 'main');
+                setFormData(prev => ({ ...prev, main_img_url: finalMainImageUrl }));
+            }
+
+            const finalAdditionalUrls: string[] = [];
+            
+            for (const img of additionalImages) {
+                if (img.file) {
+                    const url = await productsService.uploadImage(img.file, 'additional');
+                    finalAdditionalUrls.push(url);
+                } else if (img.url) {
+                    finalAdditionalUrls.push(img.url);
+                }
+            }
+
+            const cleanedData = {
+                ...formData,
+                main_img_url: finalMainImageUrl,
+                image_urls: finalAdditionalUrls.filter(url => url.trim() !== ''),
+                variant_type1_options: formData.variant_type1_options.filter(opt => opt.trim() !== ''),
+                variant_type2_options: formData.variant_type2_options.filter(opt => opt.trim() !== ''),
+                variant_prices: variantPrices
+            };
+
+            onSave(cleanedData);
+        } catch (error) {
+            console.error('Error uploading images:', error);
+            toast.error('Failed to upload images');
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const handleChange = (field: keyof FormData, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleArrayChange = (field: 'image_urls' | 'variant_type1_options' | 'variant_type2_options', index: number, value: string) => {
+    const handleArrayChange = (field: 'variant_type1_options' | 'variant_type2_options', index: number, value: string) => {
         setFormData(prev => ({
             ...prev,
             [field]: prev[field].map((item, i) => i === index ? value : item)
@@ -135,18 +187,112 @@ const ProductModal: React.FC<ProductModalProps> = ({
         }));
     };
 
-    const addArrayItem = (field: 'image_urls' | 'variant_type1_options' | 'variant_type2_options') => {
+    const addArrayItem = (field: 'variant_type1_options' | 'variant_type2_options') => {
         setFormData(prev => ({
             ...prev,
             [field]: [...prev[field], '']
         }));
     };
 
-    const removeArrayItem = (field: 'image_urls' | 'variant_type1_options' | 'variant_type2_options', index: number) => {
+    const removeArrayItem = (field: 'variant_type1_options' | 'variant_type2_options', index: number) => {
         setFormData(prev => ({
             ...prev,
             [field]: prev[field].filter((_, i) => i !== index)
         }));
+    };
+
+    const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Image size must be less than 5MB');
+            return;
+        }
+
+        setMainImageFile(file);
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setMainImagePreview(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleAdditionalImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        
+        files.forEach(file => {
+            if (!file.type.startsWith('image/')) {
+                toast.error('Please select image files only');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                toast.error('Image size must be less than 5MB');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setAdditionalImages(prev => [...prev, {
+                    file,
+                    preview: e.target?.result as string,
+                    url: ''
+                }]);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        if (additionalImagesInputRef.current) {
+            additionalImagesInputRef.current.value = '';
+        }
+    };
+
+    const removeMainImage = () => {
+        setMainImageFile(null);
+        setMainImagePreview('');
+        if (mainImageInputRef.current) {
+            mainImageInputRef.current.value = '';
+        }
+        if (!product) {
+            setFormData(prev => ({ ...prev, main_img_url: '' }));
+        }
+    };
+
+    const removeAdditionalImage = (index: number) => {
+        setAdditionalImages(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>, type: 'main' | 'additional') => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            if (type === 'main') {
+                const event = ({
+                    target: {
+                        files: [file]
+                    }
+                } as unknown) as React.ChangeEvent<HTMLInputElement>;
+                handleMainImageChange(event);
+            } else {
+                const event = ({
+                    target: {
+                        files: [file]
+                    }
+                } as unknown) as React.ChangeEvent<HTMLInputElement>;
+                handleAdditionalImagesChange(event);
+            }
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
     };
 
     return (
@@ -273,48 +419,88 @@ const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
 
                     <div className="space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Media & Settings</h3>
+                        <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Product Images</h3>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Main Image URL *</label>
-                            <input
-                                type="url"
-                                value={formData.main_img_url}
-                                onChange={(e) => handleChange('main_img_url', e.target.value)}
-                                required
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                            />
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Main Image *</label>
+                            {mainImagePreview ? (
+                                <div className="relative">
+                                    <img
+                                        src={mainImagePreview}
+                                        alt="Main preview"
+                                        className="w-full h-48 object-cover rounded-lg border-2 border-dashed border-gray-300"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={removeMainImage}
+                                        className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                                    >
+                                        <FiX size={16} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div
+                                    onDrop={(e) => handleDrop(e, 'main')}
+                                    onDragOver={handleDragOver}
+                                    className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer"
+                                    onClick={() => mainImageInputRef.current?.click()}
+                                >
+                                    <FiImage className="mx-auto text-gray-400 mb-2" size={32} />
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Drag & drop main image here, or click to select
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        Supports: JPG, PNG, WebP • Max: 5MB
+                                    </p>
+                                    <input
+                                        ref={mainImageInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleMainImageChange}
+                                        className="hidden"
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Additional Image URLs</label>
-                            {formData.image_urls.map((url, index) => (
-                                <div key={index} className="flex gap-2 mb-2">
-                                    <input
-                                        type="url"
-                                        value={url}
-                                        onChange={(e) => handleArrayChange('image_urls', index, e.target.value)}
-                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                                        placeholder="Image URL"
-                                    />
-                                    {formData.image_urls.length > 1 && (
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Additional Images</label>
+                            <div className="grid grid-cols-2 gap-3 mb-3">
+                                {additionalImages.map((img, index) => (
+                                    <div key={index} className="relative">
+                                        <img
+                                            src={img.preview}
+                                            alt={`Additional ${index + 1}`}
+                                            className="w-full h-24 object-cover rounded-lg border"
+                                        />
                                         <button
                                             type="button"
-                                            onClick={() => removeArrayItem('image_urls', index)}
-                                            className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+                                            onClick={() => removeAdditionalImage(index)}
+                                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
                                         >
-                                            Remove
+                                            <FiTrash2 size={12} />
                                         </button>
-                                    )}
-                                </div>
-                            ))}
-                            <button
-                                type="button"
-                                onClick={() => addArrayItem('image_urls')}
-                                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm"
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div
+                                onDrop={(e) => handleDrop(e, 'additional')}
+                                onDragOver={handleDragOver}
+                                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer"
+                                onClick={() => additionalImagesInputRef.current?.click()}
                             >
-                                Add Image URL
-                            </button>
+                                <FiPlus className="mx-auto text-gray-400 mb-1" size={20} />
+                                <p className="text-sm text-gray-600">Add more images</p>
+                                <input
+                                    ref={additionalImagesInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={handleAdditionalImagesChange}
+                                    className="hidden"
+                                />
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -470,14 +656,14 @@ const ProductModal: React.FC<ProductModalProps> = ({
                         type="button"
                         variant="outline"
                         onClick={onClose}
-                        disabled={isLoading}
+                        disabled={isLoading || isUploading}
                     >
                         Cancel
                     </Button>
                     <Button
                         type="submit"
                         variant="success"
-                        isLoading={isLoading}
+                        isLoading={isLoading || isUploading}
                     >
                         {product ? 'Update' : 'Create'} Product
                     </Button>

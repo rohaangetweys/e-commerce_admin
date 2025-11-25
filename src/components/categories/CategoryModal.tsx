@@ -1,8 +1,10 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { Category } from '@/utils/supabase/categories';
+import React, { useState, useEffect, useRef } from 'react';
+import { Category, categoriesService } from '@/utils/supabase/categories';
 import Modal from '@/components/common/Modal';
 import Button from '@/components/common/Button';
+import { FiUpload, FiX, FiImage } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 interface CategoryModalProps {
     isOpen: boolean;
@@ -27,6 +29,10 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
         is_active: true,
         sort_order: 0
     });
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string>('');
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (category) {
@@ -38,6 +44,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
                 is_active: category.is_active,
                 sort_order: category.sort_order
             });
+            setImagePreview(category.image_url);
         } else {
             setFormData({
                 name: '',
@@ -47,12 +54,36 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
                 is_active: true,
                 sort_order: 0
             });
+            setImagePreview('');
+            setImageFile(null);
         }
     }, [category]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData);
+        
+        if (isUploading) {
+            toast.error('Please wait for image upload to complete');
+            return;
+        }
+
+        let finalImageUrl = formData.image_url;
+
+        if (imageFile) {
+            setIsUploading(true);
+            try {
+                finalImageUrl = await categoriesService.uploadImage(imageFile);
+                setFormData(prev => ({ ...prev, image_url: finalImageUrl }));
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                toast.error('Failed to upload image');
+                setIsUploading(false);
+                return;
+            }
+            setIsUploading(false);
+        }
+
+        onSave({ ...formData, image_url: finalImageUrl });
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -62,6 +93,57 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
             [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked :
                 type === 'number' ? parseInt(value) : value
         }));
+    };
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Image size must be less than 5MB');
+            return;
+        }
+
+        setImageFile(file);
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setImagePreview(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleRemoveImage = () => {
+        setImageFile(null);
+        setImagePreview('');
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+        if (!category) {
+            setFormData(prev => ({ ...prev, image_url: '' }));
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            const event = ({
+                target: {
+                    files: [file]
+                }
+            } as unknown) as React.ChangeEvent<HTMLInputElement>;
+            handleImageChange(event);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
     };
 
     return (
@@ -114,16 +196,59 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Image URL
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Category Image
                     </label>
-                    <input
-                        type="url"
-                        name="image_url"
-                        value={formData.image_url}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1ABA1A] focus:border-transparent"
-                    />
+                    
+                    {imagePreview ? (
+                        <div className="relative">
+                            <img
+                                src={imagePreview}
+                                alt="Preview"
+                                className="w-full h-48 object-cover rounded-lg border-2 border-dashed border-gray-300"
+                            />
+                            <button
+                                type="button"
+                                onClick={handleRemoveImage}
+                                className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                            >
+                                <FiX size={16} />
+                            </button>
+                        </div>
+                    ) : (
+                        <div
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <FiImage className="mx-auto text-gray-400 mb-2" size={32} />
+                            <p className="text-sm text-gray-600 mb-2">
+                                Drag & drop an image here, or click to select
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                Supports: JPG, PNG, WebP • Max: 5MB
+                            </p>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageChange}
+                                className="hidden"
+                            />
+                        </div>
+                    )}
+
+                    {!imagePreview && formData.image_url && (
+                        <div className="mt-2">
+                            <p className="text-sm text-gray-600 mb-2">Current Image:</p>
+                            <img
+                                src={formData.image_url}
+                                alt="Current"
+                                className="w-full h-32 object-cover rounded-lg border"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -159,14 +284,14 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
                         type="button"
                         variant="outline"
                         onClick={onClose}
-                        disabled={isLoading}
+                        disabled={isLoading || isUploading}
                     >
                         Cancel
                     </Button>
                     <Button
                         type="submit"
                         variant="success"
-                        isLoading={isLoading}
+                        isLoading={isLoading || isUploading}
                     >
                         {category ? 'Update' : 'Create'} Category
                     </Button>
