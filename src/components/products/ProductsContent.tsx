@@ -6,7 +6,7 @@ import DataTable from '@/components/common/DataTable';
 import Button from '@/components/common/Button';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 import ProductModal from '@/components/products/ProductModal';
-import { FiSearch, FiFilter, FiX } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiX, FiToggleLeft, FiToggleRight } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 interface ProductsContentProps {
@@ -26,14 +26,12 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
         product: null
     });
 
-    // Filter states
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [stockFilter, setStockFilter] = useState<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
     const [showFilters, setShowFilters] = useState(false);
 
-    // Fetch categories on component mount
     useEffect(() => {
         const fetchCategories = async () => {
             try {
@@ -48,29 +46,26 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
         fetchCategories();
     }, []);
 
-    // Filter products based on search and filters
     const filteredProducts = useMemo(() => {
         return products.filter(product => {
             const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                product.brand?.toLowerCase().includes(searchTerm.toLowerCase());
-            
-            const matchesStatus = statusFilter === 'all' || 
-                                (statusFilter === 'active' && product.is_active) ||
-                                (statusFilter === 'inactive' && !product.is_active);
-            
+                product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                product.brand?.toLowerCase().includes(searchTerm.toLowerCase());
+
+            const matchesStatus = statusFilter === 'all' ||
+                (statusFilter === 'active' && product.is_active) ||
+                (statusFilter === 'inactive' && !product.is_active);
+
             const matchesCategory = categoryFilter === 'all' || product.category_id === categoryFilter;
-            
+
             const matchesStock = stockFilter === 'all' ||
-                               (stockFilter === 'in-stock' && product.stock_quantity > 10) ||
-                               (stockFilter === 'low-stock' && product.stock_quantity > 0 && product.stock_quantity <= 10) ||
-                               (stockFilter === 'out-of-stock' && product.stock_quantity === 0);
-            
+                (stockFilter === 'in-stock' && product.stock_quantity > 0) ||
+                (stockFilter === 'out-of-stock' && product.stock_quantity === 0);
+
             return matchesSearch && matchesStatus && matchesCategory && matchesStock;
         });
     }, [products, searchTerm, statusFilter, categoryFilter, stockFilter]);
 
-    // Clear all filters
     const clearFilters = () => {
         setSearchTerm('');
         setStatusFilter('all');
@@ -80,7 +75,6 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
 
     const getStockStatus = (quantity: number) => {
         if (quantity === 0) return { text: 'Out of Stock', color: 'bg-red-100 text-red-800' };
-        if (quantity <= 10) return { text: 'Low Stock', color: 'bg-yellow-100 text-yellow-800' };
         return { text: 'In Stock', color: 'bg-green-100 text-green-800' };
     };
 
@@ -91,8 +85,8 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
             render: (value: string, row: Product) => (
                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
                     {value ? (
-                        <img 
-                            src={value} 
+                        <img
+                            src={value}
                             alt={row.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -141,14 +135,32 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
         {
             key: 'is_active',
             header: 'Status',
-            render: (value: boolean) => (
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    value 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                }`}>
+            render: (value: boolean, row: Product) => (
+                <button
+                    onClick={() => handleToggleStatus(row)}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${value
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                            : 'bg-red-100 text-red-800 hover:bg-red-200'
+                        }`}
+                >
+                    {value ? <FiToggleRight size={16} /> : <FiToggleLeft size={16} />}
                     {value ? 'Active' : 'Inactive'}
-                </span>
+                </button>
+            )
+        },
+        {
+            key: 'variants',
+            header: 'Variants',
+            render: (value: any, row: Product) => (
+                <div className="text-xs text-gray-600">
+                    {row.variant_type1_name && (
+                        <div>{row.variant_type1_name}: {row.variant_type1_options?.length || 0}</div>
+                    )}
+                    {row.variant_type2_name && (
+                        <div>{row.variant_type2_name}: {row.variant_type2_options?.length || 0}</div>
+                    )}
+                    {!row.variant_type1_name && !row.variant_type2_name && 'No variants'}
+                </div>
             )
         },
         {
@@ -162,14 +174,12 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
         setIsLoading(true);
         try {
             if (productModal.product) {
-                // Update existing product
                 const updatedProduct = await productsService.updateProduct(productModal.product.id, productData);
-                setProducts(products.map(prod => 
+                setProducts(products.map(prod =>
                     prod.id === updatedProduct.id ? updatedProduct : prod
                 ));
                 toast.success('Product updated successfully');
             } else {
-                // Create new product
                 const newProduct = await productsService.createProduct(productData);
                 setProducts([newProduct, ...products]);
                 toast.success('Product created successfully');
@@ -187,7 +197,7 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
         setIsLoading(true);
         try {
             await productsService.toggleProductStatus(product.id, !product.is_active);
-            setProducts(products.map(prod => 
+            setProducts(products.map(prod =>
                 prod.id === product.id ? { ...prod, is_active: !prod.is_active } : prod
             ));
             toast.success(`Product ${!product.is_active ? 'activated' : 'deactivated'} successfully`);
@@ -216,17 +226,17 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
         }
     };
 
-    const activeFiltersCount = (searchTerm ? 1 : 0) + 
-                             (statusFilter !== 'all' ? 1 : 0) + 
-                             (categoryFilter !== 'all' ? 1 : 0) + 
-                             (stockFilter !== 'all' ? 1 : 0);
+    const activeFiltersCount = (searchTerm ? 1 : 0) +
+        (statusFilter !== 'all' ? 1 : 0) +
+        (categoryFilter !== 'all' ? 1 : 0) +
+        (stockFilter !== 'all' ? 1 : 0);
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold text-gray-800">Products Management</h1>
-                <Button 
-                    variant="success" 
+                <Button
+                    variant="success"
                     onClick={() => setProductModal({ isOpen: true, product: null })}
                 >
                     Add New Product
@@ -319,7 +329,6 @@ const ProductsContent: React.FC<ProductsContentProps> = ({ initialProducts }) =>
                                 >
                                     <option value="all">All Stock</option>
                                     <option value="in-stock">In Stock</option>
-                                    <option value="low-stock">Low Stock</option>
                                     <option value="out-of-stock">Out of Stock</option>
                                 </select>
                             </div>

@@ -164,7 +164,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
                         <h3 className="text-lg font-semibold text-gray-800">Recent Orders</h3>
                         <button 
                             onClick={() => handleCardClick('/sales')}
-                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                            className="text-sm text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
                         >
                             View All
                         </button>
@@ -217,7 +217,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
                                 <button
                                     key={action.label}
                                     onClick={() => handleQuickAction(action.route)}
-                                    className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group"
+                                    className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group cursor-pointer"
                                 >
                                     <div className="flex items-center space-x-3">
                                         <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-blue-100 transition-colors">

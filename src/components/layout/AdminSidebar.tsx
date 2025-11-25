@@ -1,7 +1,8 @@
 'use client'
 
+import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
     FiHome,
     FiUsers,
@@ -23,7 +24,19 @@ const menuItems = [
 ]
 
 export default function AdminSidebar() {
-    const pathname = usePathname()
+    const pathname = usePathname();
+    const router = useRouter();
+
+    const supabase = createClient();
+
+    const handleLogout = async () => {
+        try {
+            await supabase.auth.signOut();
+            router.push('/login')
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    };
 
     return (
         <div className="w-64 bg-white shadow-lg flex flex-col">
@@ -56,7 +69,7 @@ export default function AdminSidebar() {
             </nav>
 
             <div className="p-4 border-t border-gray-200">
-                <button className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors w-full">
+                <button className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors w-full cursor-pointer" onClick={handleLogout}>
                     <FiLogOut size={20} />
                     <span className="font-medium">Logout</span>
                 </button>

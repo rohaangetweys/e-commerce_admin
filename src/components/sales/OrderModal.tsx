@@ -21,7 +21,6 @@ const OrderModal: React.FC<OrderModalProps> = ({
 }) => {
     if (!order) return null;
 
-    // Only 2 status options now
     const statusOptions: Order['status'][] = ['pending', 'completed'];
 
     const getStatusColor = (status: Order['status']) => {
@@ -119,7 +118,7 @@ const OrderModal: React.FC<OrderModalProps> = ({
                                 key={status}
                                 onClick={() => onUpdateStatus(order, status)}
                                 disabled={isLoading || order.status === status}
-                                className={`px-4 py-2 rounded-full text-sm font-medium capitalize ${
+                                className={`cursor-pointer px-4 py-2 rounded-full text-sm font-medium capitalize ${
                                     order.status === status 
                                         ? getStatusColor(status) 
                                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'

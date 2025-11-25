@@ -74,7 +74,7 @@ const DataTable: React.FC<DataTableProps> = ({
                                             {onView && (
                                                 <button
                                                     onClick={() => onView(item)}
-                                                    className="text-blue-600 hover:text-blue-900"
+                                                    className="text-blue-600 hover:text-blue-900 cursor-pointer"
                                                 >
                                                     <FiEye size={16} />
                                                 </button>
@@ -82,7 +82,7 @@ const DataTable: React.FC<DataTableProps> = ({
                                             {onEdit && (
                                                 <button
                                                     onClick={() => onEdit(item)}
-                                                    className="text-green-600 hover:text-green-900"
+                                                    className="text-green-600 hover:text-green-900 cursor-pointer"
                                                 >
                                                     <FiEdit size={16} />
                                                 </button>
@@ -90,7 +90,7 @@ const DataTable: React.FC<DataTableProps> = ({
                                             {onDelete && (
                                                 <button
                                                     onClick={() => onDelete(item)}
-                                                    className="text-red-600 hover:text-red-900"
+                                                    className="text-red-600 hover:text-red-900 cursor-pointer"
                                                 >
                                                     <FiTrash2 size={16} />
                                                 </button>
